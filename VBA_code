@@ -17,7 +17,7 @@ Sub buildit_Horizon()
     Application.ScreenUpdating = False
     ActiveSheet.DisplayPageBreaks = False
     
-    filePath = "\\hewpedbprd\sgroot\Chemware_Export\Backup\"
+    filePath = "\\server\sgroot\Chemware_Export\Backup\"
     
     Sheets("Sheet3").Range("a1").Value = "HSN"
     Sheets("Sheet3").Range("a2").Value = "Case ID"
@@ -171,9 +171,9 @@ Sub buildit_RV()
     Application.ScreenUpdating = False
     ActiveSheet.DisplayPageBreaks = False
     
-    filePath = "\\hewpedbprd\sgroot\Chemware_Export\Backup\"
-    demoPath = "\\hewpedbprd\sgroot\Data_Import\Backup\"
-    msmspath = "\\labshared\neonatal1\CLIR\CLIR exports\RV\"
+    filePath = "\\server\sgroot\Chemware_Export\Backup\"
+    demoPath = "\\server\sgroot\Data_Import\Backup\"
+    msmspath = "\\labserver\labunit\CLIR\CLIR exports\RV\"
     
     'On Error Resume Next
     Sheets("Sheet3").Range("a1").Value = "HSN"
@@ -205,7 +205,7 @@ Sub buildit_RV()
     
     tries = 0
 
-    msmspath = "\\labshared\neonatal1\CLIR\CLIR exports\RV\" & Format(startdate, "YYYY") & "\" & Format(startdate, "MM") & "\"
+    msmspath = "\\labserver\labunit\CLIR\CLIR exports\RV\" & Format(startdate, "YYYY") & "\" & Format(startdate, "MM") & "\"
     msmsfile = Dir(msmspath)
     While Len(msmsfile) > 0
         Application.StatusBar = "Importing " & msmspath & msmsfile
@@ -310,7 +310,7 @@ Sub buildit_demos()
     Application.ScreenUpdating = False
     ActiveSheet.DisplayPageBreaks = False
 
-    demoPath = "\\hewpedbprd\sgroot\Data_Import\Backup\"
+    demoPath = "\\server\sgroot\Data_Import\Backup\"
     
     'On Error Resume Next
     
