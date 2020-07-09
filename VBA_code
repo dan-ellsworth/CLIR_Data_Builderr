@@ -1,0 +1,634 @@
+Sub buildit_Horizon()
+
+    Dim j As Integer, k As Integer, l As Integer
+    Dim importfile As String, filePath As String
+    Dim starttime
+    Dim elapsedtime
+    Dim startdate, enddate
+    Dim endtrip
+    Dim goAhead
+    Dim imported As String
+    Dim errornames As String
+    Dim currentdate
+    Dim filecount As Integer
+    
+    starttime = Timer
+    
+    Application.ScreenUpdating = False
+    ActiveSheet.DisplayPageBreaks = False
+    
+    filePath = "\\hewpedbprd\sgroot\Chemware_Export\Backup\"
+    
+    Sheets("Sheet3").Range("a1").Value = "HSN"
+    Sheets("Sheet3").Range("a2").Value = "Case ID"
+    
+    If Sheets("dashboard").Range("M2").Value = "" Or Sheets("dashboard").Range("M3").Value = "" Then
+        MsgBox ("Please enter a start and end date")
+        Exit Sub
+    End If
+    
+    startdate = CDate(Sheets("dashboard").Range("M2").Value)
+    enddate = CDate(Sheets("dashboard").Range("M3").Value)
+
+    If startdate > enddate Then
+        days = startdate
+        startdate = enddate
+        enddate = days
+    End If
+    
+    If enddate - startdate > 35 Then
+        enddate = startdate + 35
+        MsgBox ("The date range being imported has been reduced to " & startdate & " through " & enddate & " in order to avoid errors and ensure the system can import all the data.")
+    End If
+    
+    goAhead = MsgBox("You are about to import data from " & startdate & " to " & enddate & _
+    ".  This will take up to " & Format(((enddate - startdate) * 73) / 86400, "HH:MM:SS") & _
+    ". During this time you will be unable to use Excel for any reason, " & _
+    "and it is recommended that you minimize use of your computer. Do you want to continue?", vbYesNo)
+    
+    If goAhead = vbNo Then GoTo finale
+
+    On Error GoTo trynext
+    
+    currentdate = startdate
+    While currentdate <= enddate
+        importfile = Dir(filePath & "DailyDataExport" & Format(currentdate, "YYYYMMDD") & "*", vbNormal)
+        errornames = importfile
+        While Len(importfile) > 0
+            Application.StatusBar = "Importing " & filePath & importfile
+            If Sheets("dashboard").Range("A:A").Find(filePath & importfile, LookIn:=xlValues) Is Nothing Then
+                Call Final_Result_Importer(filePath & importfile)
+                imported = imported & importfile & vbNewLine
+            End If
+            errornames = ""
+            importfile = Dir
+        Wend
+trynext:
+        If errornames <> "" Then MsgBox ("there was an error importing " & errornames)
+        currentdate = currentdate + 1
+    Wend
+    
+    On Error GoTo runaway
+finale:
+    Application.StatusBar = False
+    elapsedtime = Format((Timer - starttime) / 86400, "hh:mm:ss")
+    MsgBox ("This took " & elapsedtime & " to complete. Imported files:" & vbNewLine & imported)
+    
+    Application.ScreenUpdating = True
+    ActiveSheet.DisplayPageBreaks = True
+    Exit Sub
+    
+runaway:
+    Application.StatusBar = False
+    MsgBox ("something went wrong :-/")
+    Application.ScreenUpdating = True
+    ActiveSheet.DisplayPageBreaks = True
+    
+End Sub
+
+Sub Final_Result_Importer(filename As String)
+'
+' QS7_WORKLIST_BUILDER Macro
+'
+    Dim FSO As Object, myFile As Object
+    Dim Arr As Variant
+    Dim rng As Range, testcol As Range
+    Dim testname, i As Integer, curline As Variant, hsn
+    Dim testVal
+    Dim fnum As Integer
+    Dim inputline As String
+    
+    fnum = FreeFile
+    
+    Open filename For Input Access Read As #fnum
+    On Error GoTo runaway
+    Do Until EOF(fnum)
+        Line Input #fnum, inputline
+        curline = Split(inputline, "|")
+        If InStr(curline(3), "-") > 0 Then
+            testname = Left(curline(3), InStr(curline(3), "-") - 1)
+        Else
+            GoTo nexttry
+        End If
+        hsn = curline(1)
+        If IsNumeric(curline(4)) Then
+            testVal = curline(4)
+        Else
+            testVal = ""
+        End If
+        
+        If testVal <> 0 Then
+            If Not Sheets("Export Template").Range("6:6").Find(testname, LookIn:=xlValues) Is Nothing Then
+                Set rng = Sheets("Sheet3").Range("A:A").Find(What:=hsn, LookIn:=xlValues)
+                Set testcol = Sheets("Sheet3").Range("1:1").Find(What:=testname, LookIn:=xlValues)
+    
+                If rng Is Nothing Then
+                    Sheets("Sheet3").Range("a3").EntireRow.Insert
+                    Sheets("Sheet3").Range("A3").Value = hsn
+                    Set rng = Sheets("Sheet3").Range("A3")
+                End If
+    
+                If testcol Is Nothing Then
+                   Sheets("Sheet3").Range("d1").EntireColumn.Insert
+                   Sheets("Sheet3").Range("d1").Value = testname
+                   If Not Sheets("Export Template").Range("6:6").Find(testname, LookIn:=xlValues, lookat:=xlWhole) Is Nothing Then
+                        Sheets("Sheet3").Range("D2").Value = Sheets("Export Template").Range("6:6").Find(testname, LookIn:=xlValues, lookat:=xlWhole).Offset(-3, 0)
+                    End If
+                    Set testcol = Sheets("Sheet3").Range("d1")
+                End If
+                rng.Offset(0, testcol.Column - 1).Value = testVal
+            End If
+        End If
+nexttry:
+    Loop
+    
+    
+    If Sheets("dashboard").Range("a:a").Find(filename, LookIn:=xlValues, lookat:=xlWhole) Is Nothing Then
+        Sheets("dashboard").Range("A1").Insert Shift:=xlDown
+        Sheets("dashboard").Range("A1").Value = filename
+    End If
+    Close #fnum
+    Exit Sub
+    
+runaway:
+    MsgBox ("Unable to import file " & filename)
+    Close #fnum
+End Sub
+
+Sub buildit_RV()
+
+    Dim j As Integer, k As Integer, l As Integer
+    Dim msmsfile As String, msmspath As String
+    Dim starttime
+    Dim elapsedtime
+    Dim startdate, enddate
+    Dim days
+    Dim tries
+    Dim endtrip
+    Dim goAhead
+    
+    
+    Application.ScreenUpdating = False
+    ActiveSheet.DisplayPageBreaks = False
+    
+    filePath = "\\hewpedbprd\sgroot\Chemware_Export\Backup\"
+    demoPath = "\\hewpedbprd\sgroot\Data_Import\Backup\"
+    msmspath = "\\labshared\neonatal1\CLIR\CLIR exports\RV\"
+    
+    'On Error Resume Next
+    Sheets("Sheet3").Range("a1").Value = "HSN"
+    Sheets("Sheet3").Range("a2").Value = "Case ID"
+    
+    If Sheets("dashboard").Range("M2").Value = "" Or Sheets("dashboard").Range("M3").Value = "" Then
+        MsgBox ("Please enter a start and end date")
+        Exit Sub
+    End If
+    
+    starttime = Timer
+    
+    startdate = CDate(Sheets("dashboard").Range("M2").Value)
+    enddate = CDate(Sheets("dashboard").Range("M3").Value)
+    
+    If startdate > enddate Then
+        days = startdate
+        startdate = enddate
+        enddate = days
+    ElseIf startdate = enddate Then
+        MsgBox ("start date and end date cannot be the same")
+        Exit Sub
+    End If
+    
+    goAhead = MsgBox("This program will import all MSMS data from the month of " & _
+        Format(startdate, "MMM, YYYY") & ".  Is this OK?", vbYesNo)
+    
+    If goAhead = vbNo Then GoTo finale
+    
+    tries = 0
+
+    msmspath = "\\labshared\neonatal1\CLIR\CLIR exports\RV\" & Format(startdate, "YYYY") & "\" & Format(startdate, "MM") & "\"
+    msmsfile = Dir(msmspath)
+    While Len(msmsfile) > 0
+        Application.StatusBar = "Importing " & msmspath & msmsfile
+        If Sheets("dashboard").Range("C:C").Find(msmspath & msmsfile, LookIn:=xlValues, lookat:=xlWhole) Is Nothing Then
+            Call MSMS_importer(msmspath & msmsfile)
+        End If
+        msmsfile = Dir
+    Wend
+
+    
+finale:
+    'Call data_cleaner
+    Application.StatusBar = False
+    elapsedtime = Format((Timer - starttime) / 86400, "hh:mm:ss")
+    MsgBox ("This took " & elapsedtime & " to complete.")
+    
+    Application.ScreenUpdating = True
+    ActiveSheet.DisplayPageBreaks = True
+    Exit Sub
+    
+runaway:
+    Application.StatusBar = False
+    MsgBox ("something went wrong :-/")
+    Application.ScreenUpdating = True
+    ActiveSheet.DisplayPageBreaks = True
+    
+    
+End Sub
+
+
+Sub MSMS_importer(filename As String)
+
+    Dim FSO As Object, myFile As Object
+    Dim Arr As Variant
+    Dim rng As Range
+    Dim i As Integer, curline As Variant, hsn
+    Dim testname As String
+    Dim testvalue As String, testcol As Range
+    Dim usevalue
+    Dim fnum As Integer, inputline As String
+    
+    'filename = Application.GetOpenFilename
+    
+    fnum = FreeFile
+    Open filename For Input Access Read As #fnum
+    
+    Do Until EOF(fnum)
+        Line Input #fnum, inputline
+        curline = Split(inputline, vbTab)
+        hsn = Right(curline(1), Len(curline(1)) - 2)
+        hsn = Left(hsn, Len(hsn) - 1)
+        testname = curline(0)
+        testvalue = curline(5)
+        usevalue = curline(9)
+        
+        If testname <> "" And testvalue <> "0" And usevalue = "110" Then
+            If Not Sheets("dashboard").Range("U:U").Find(testname, LookIn:=xlValues) Is Nothing Then
+                Set rng = Sheets("Sheet3").Range("A:A").Find(What:=hsn, LookIn:=xlValues)
+                Set testcol = Sheets("Sheet3").Range("1:1").Find(What:=testname, LookIn:=xlValues)
+                
+                If rng Is Nothing Then
+                    Sheets("Sheet3").Range("a3").EntireRow.Insert
+                    Sheets("Sheet3").Range("A3").Value = hsn
+                    Set rng = Sheets("Sheet3").Range("A3")
+                End If
+                
+                If testcol Is Nothing Then
+                    Sheets("Sheet3").Range("d1").EntireColumn.Insert
+                    Sheets("Sheet3").Range("d1").Value = testname
+                    If Not Sheets("dashboard").Range("U:U").Find(testname, LookIn:=xlValues, lookat:=xlWhole) Is Nothing Then
+                        Sheets("Sheet3").Range("D2").Value = Sheets("dashboard").Range("U:U").Find(testname, LookIn:=xlValues, lookat:=xlWhole).Offset(0, -1)
+                    End If
+                    Set testcol = Sheets("Sheet3").Range("d1")
+                End If
+                rng.Offset(0, testcol.Column - 1).Value = testvalue
+            End If
+        End If
+    
+    Loop
+    
+runaway:
+    If Sheets("dashboard").Range("C:C").Find(filename, LookIn:=xlValues, lookat:=xlWhole) Is Nothing Then
+        Sheets("dashboard").Range("c1").Insert Shift:=xlDown
+        Sheets("dashboard").Range("c1").Value = filename
+    End If
+    Close #fnum
+
+End Sub
+
+Sub buildit_demos()
+
+    Dim j As Integer, k As Integer, l As Integer
+    Dim demofile As String, demoPath As String
+    Dim starttime
+    Dim elapsedtime
+    Dim startdate, enddate
+    Dim days
+    Dim tries
+    Dim endtrip
+    Dim goAhead
+    
+    Application.ScreenUpdating = False
+    ActiveSheet.DisplayPageBreaks = False
+
+    demoPath = "\\hewpedbprd\sgroot\Data_Import\Backup\"
+    
+    'On Error Resume Next
+    
+    Sheets("Sheet3").Range("a1").Value = "HSN"
+    Sheets("Sheet3").Range("a2").Value = "Case ID"
+    
+    starttime = Timer
+        
+    If Sheets("dashboard").Range("M2").Value = "" Or Sheets("dashboard").Range("M3").Value = "" Then
+        MsgBox ("Please enter a start and end date")
+        Exit Sub
+    End If
+    
+    startdate = CDate(Sheets("dashboard").Range("M2").Value)
+    enddate = CDate(Sheets("dashboard").Range("M3").Value)
+    
+    If startdate > enddate Then
+        days = startdate
+        startdate = enddate
+        enddate = days
+    ElseIf startdate = enddate Then
+        MsgBox ("start date and end date cannot be the same")
+        Exit Sub
+    End If
+    
+    goAhead = MsgBox("You are about to import data from " & startdate & " to " & enddate & ". Is this correct?", vbYesNo)
+    
+    If goAhead = vbNo Then GoTo finale
+    
+    tries = 0
+    While tries < 3
+        While startdate <= enddate
+            demofile = Dir(demoPath & "DailyDataImport-" & Format(startdate, "YYYY-MM-DD-") & "*", vbNormal)
+            While Len(demofile) > 0
+                Application.StatusBar = "Importing: " & demoPath & demofile
+                If Sheets("dashboard").Range("B:B").Find(demoPath & demofile, LookIn:=xlValues, lookat:=xlWhole) Is Nothing Then
+                    Call Final_Demo_Importer(demoPath & demofile)
+                End If
+                demofile = Dir
+            Wend
+            startdate = startdate + 1
+        Wend
+        tries = tries + 1
+    Wend
+    If tries > 2 Then GoTo finale
+
+    
+finale:
+    'Call data_cleaner
+    Application.StatusBar = False
+    elapsedtime = Format((Timer - starttime) / 86400, "hh:mm:ss")
+    MsgBox ("This took " & elapsedtime & " to complete.")
+    
+    Application.ScreenUpdating = True
+    ActiveSheet.DisplayPageBreaks = True
+    Exit Sub
+    
+runaway:
+    Application.StatusBar = False
+    MsgBox ("something went wrong :-/")
+    Application.ScreenUpdating = True
+    ActiveSheet.DisplayPageBreaks = True
+    
+End Sub
+
+Sub Final_Demo_Importer(filename As String)
+'
+' QS7_WORKLIST_BUILDER Macro
+'
+
+'
+    Dim FSO As Object, myFile As Object
+    Dim Arr As Variant
+    Dim rng As Range, weight
+    Dim age, i As Integer, curline As Variant, hsn
+    Dim fnum As Integer, inputline As String
+    Dim line
+    'Dim filename
+    
+    'filename = Application.GetOpenFilename
+    
+    If Sheets("Sheet3").Range("B1").Value <> "Age hr" Then
+        Sheets("Sheet3").Range("B1").Value = "Age hr"
+        Sheets("Sheet3").Range("B2").Value = Sheets("Export Template").Range("2:2").Find("Age hr", LookIn:=xlValues, lookat:=xlWhole).Offset(1, 0).Value
+    End If
+    
+    If Sheets("Sheet3").Range("c1").Value <> "BW" Then
+        Sheets("Sheet3").Range("c1").Value = "BW"
+        Sheets("Sheet3").Range("c2").Value = Sheets("Export Template").Range("2:2").Find("BW", LookIn:=xlValues, lookat:=xlWhole).Offset(1, 0).Value
+    End If
+    
+On Error GoTo Slow_import
+    Set FSO = CreateObject("Scripting.FileSystemObject")
+    Set myFile = FSO.OpenTextFile(Import, 1)
+                
+    Arr = Split(WholeFile.ReadAll, vbNewLine)
+        
+    For Each line In Arr
+        curline = Split(line, "|")
+        hsn = curline(0)
+        weight = curline(1)
+        age = curline(2)
+        
+        Set rng = Sheets("Sheet3").Range("A:A").Find(What:=hsn, LookIn:=xlValues)
+        
+        If rng Is Nothing Then
+            Sheets("Sheet3").Range("a3").EntireRow.Insert
+            Sheets("Sheet3").Range("A3").Value = hsn
+            Set rng = Sheets("Sheet3").Range("A3")
+        End If
+        
+        rng.Offset(0, 1).Value = age
+        rng.Offset(0, 2).Value = weight
+    Next line
+    Close myFile
+    
+    GoTo finale
+    
+Slow_import:
+
+    fnum = FreeFile
+    Open filename For Input Access Read As #fnum
+    
+    Do Until EOF(fnum)
+        Line Input #fnum, inputline
+        curline = Split(inputline, "|")
+        hsn = curline(0)
+        weight = curline(1)
+        age = curline(2)
+        
+        Set rng = Sheets("Sheet3").Range("A:A").Find(What:=hsn, LookIn:=xlValues)
+        
+        If rng Is Nothing Then
+            Sheets("Sheet3").Range("a3").EntireRow.Insert
+            Sheets("Sheet3").Range("A3").Value = hsn
+            Set rng = Sheets("Sheet3").Range("A3")
+        End If
+        
+        rng.Offset(0, 1).Value = age
+        rng.Offset(0, 2).Value = weight
+    Loop
+    Close #fnum
+
+finale:
+    
+    If Sheets("dashboard").Range("B:B").Find(filename, LookIn:=xlValues, lookat:=xlWhole) Is Nothing Then
+        Sheets("dashboard").Range("b1").Insert Shift:=xlDown
+        Sheets("dashboard").Range("b1").Value = filename
+    End If
+runaway:
+
+    Close #fnum
+End Sub
+
+Sub nbs_query_import()
+    Dim weight, age, hsn
+    Dim fnum As Integer, curline As Variant
+    Dim inputline As String
+    Dim filename As String
+    Dim hsncol As Integer
+    Dim weightcol As Integer
+    Dim agecol As Integer
+    Dim i As Integer
+    Dim rng As Range
+
+    hsncol = -1
+    agecol = -1
+    weightcol = -1
+
+    filename = Application.GetOpenFilename
+    fnum = FreeFile
+    Open filename For Input Access Read As #fnum
+    
+    Do Until EOF(fnum)
+        Line Input #fnum, inputline
+        curline = Split(inputline, ",")
+        If hsncol = -1 Then
+            For i = 0 To UBound(curline)
+                Select Case curline(i)
+                    Case """HSN"""
+                        hsncol = i
+                    Case """Age Hours"""
+                        agecol = i
+                    Case """Baby Weight Grams"""
+                        weightcol = i
+                End Select
+            Next i
+        End If
+        
+        If IsNumeric(Replace(curline(hsncol), """", "")) Then
+            hsn = Replace(curline(hsncol), """", "")
+            age = Replace(curline(agecol), """", "")
+            weight = Replace(curline(weightcol), """", "")
+            
+            Set rng = Sheets("Sheet3").Range("A:A").Find(What:=hsn, LookIn:=xlValues)
+            
+            If rng Is Nothing Then
+                Sheets("Sheet3").Range("a3").EntireRow.Insert
+                Sheets("Sheet3").Range("A3").Value = hsn
+                Set rng = Sheets("Sheet3").Range("A3")
+            End If
+            rng.Offset(0, 1).Value = age
+            rng.Offset(0, 2).Value = weight
+        End If
+    Loop
+       
+    Close fnum
+End Sub
+
+Sub data_cleaner()
+    Dim i As Integer, j As Integer
+    i = 0
+    While Sheets("sheet3").Range("a1").Offset(0, i).Value <> ""
+        j = 1
+        While Sheets("sheet3").Range("a1").Offset(0, i + j).Value <> ""
+            If Sheets("sheet3").Range("a1").Offset(0, i).Value = Sheets("sheet3").Range("a1").Offset(0, i + j).Value Then
+                Sheets("Sheet3").Range("d1").EntireColumn.Insert Shift:=xlRight
+                i = i + 1
+                Sheets("Sheet3").Range("d1") = Sheets("sheet3").Range("a1").Offset(0, i).Value & Sheets("sheet3").Range("a1").Offset(0, i + j).Value
+                For Each cell In Sheets("sheet3").Range("A:A")
+                    If cell.Value = "" Then Exit For
+                    cell.Offset(0, 3).Value = cell.Offset(0, i).Value & cell.Offset(0, i + j).Value
+                Next cell
+                Sheets("sheet3").Range("a1").Offset(0, i + j).EntireColumn.Delete Shift:=xlLeft
+                Sheets("sheet3").Range("a1").Offset(0, i).EntireColumn.Delete Shift:=xlLeft
+            End If
+        
+        Wend
+    i = i + 1
+    Wend
+    
+    
+End Sub
+
+Sub final_upload_builder()
+    Dim starttime, endrow
+    Dim tempcol, letsdoit
+    Dim sourceArr As Variant
+    Dim finalArr As Variant
+    Dim endcol, i, j, k
+    Dim finalRow, colcount
+    
+    starttime = Timer
+    
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    Application.EnableEvents = False
+    
+    endrow = Application.CountIf(Sheets("sheet3").Range("A:A"), "<>")
+    endcol = Application.CountIf(Sheets("sheet3").Range("2:2"), "<>")
+    
+    
+    ReDim sourceArr(1 To endrow, 1 To endcol)
+    ReDim finalArr(1 To endrow, 1 To endcol)
+    
+    letsdoit = MsgBox("This operation will take apprx. " & Format((endrow / 75) / 86400, "hh:mm:ss") & " and it is recommended to not use your computer for anyhting else during this time. Do you want to continue?", vbYesNo)
+    
+    If letsdoit = vbNo Then Exit Sub
+    
+    Sheets("Full Export").Range("a1").Value = Sheets("Export Template").Range("a1").Value
+    
+    Sheets("Full Export").Range("3:3").Value = Sheets("sheet3").Range("2:2").Value
+    
+    For i = 1 To endcol
+        Sheets("Full Export").Cells(2, i).Value = Sheets("Export Template").Range("3:3").Find(Sheets("Full Export").Cells(3, i).Value, LookIn:=xlValues, lookat:=xlWhole).Offset(-1, 0).Value
+    Next i
+    
+    Sheets("Full Export").Range("a2").ClearContents
+    
+    'On Error GoTo runaway
+    For i = 1 To endrow - 2
+        For j = 1 To endcol
+            sourceArr(i, j) = Sheets("sheet3").Cells(i + 2, j).Value
+        Next j
+    Next i
+    
+    finalRow = 1
+    
+    For i = 1 To UBound(sourceArr, 1)
+    
+        If sourceArr(i, 2) > Sheets("dashboard").Range("M5").Value And _
+           sourceArr(i, 2) < Sheets("dashboard").Range("M6").Value And _
+           sourceArr(i, 3) > Sheets("dashboard").Range("M8").Value And _
+           sourceArr(i, 3) < Sheets("dashboard").Range("M9").Value Then
+            k = 0
+            For j = 4 To UBound(sourceArr, 2)
+                If sourceArr(i, j) <> "" Then k = k + 1
+            Next j
+            If k > 3 Then
+                For j = 1 To UBound(sourceArr, 2)
+                    finalArr(finalRow, j) = sourceArr(i, j)
+                Next j
+                finalRow = finalRow + 1
+            End If
+        End If
+    Next i
+    
+    Range(Sheets("Full Export").Cells(4, 1), Sheets("Full Export").Cells(endrow, endcol)).Value = finalArr
+
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
+    
+    MsgBox ("This operation took " & Format((Timer - starttime) / 86400, "hh:mm:ss") & " to complete.")
+    Application.StatusBar = False
+
+End Sub
+
+Sub clear_data()
+    Sheets("dashboard").Range("a:d").ClearContents
+    Sheets("Sheet3").Range("A:a").EntireRow.ClearContents
+End Sub
+ 
+Sub test()
+    For Each cell In Sheets("Dashboard").Range("T:t")
+        If cell.Value = "" Then Exit For
+        If Not Sheets("Export Template").Range("3:3").Find(cell.Value, LookIn:=xlValues, lookat:=xlWhole) Is Nothing Then
+            Sheets("Export Template").Range("3:3").Find(cell.Value, LookIn:=xlValues, lookat:=xlWhole).Offset(4, 0) = cell.Offset(0, 2).Value
+        End If
+    Next cell
+End Sub
